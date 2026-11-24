@@ -13,8 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_CSV = ROOT / "data" / "reviews_raw.csv"
-OUT_CSV = ROOT / "data" / "reviews_labeled_5000.csv"
-TARGET_COUNT = 5000
+OUT_CSV = ROOT / "data" / "reviews_labeled.csv"
 
 CLAUSE_SPLIT_RE = re.compile(
     r"[\n.!?。]+|\s+(?:근데|그런데|하지만|다만|그러나|그래도)\s+"
@@ -137,11 +136,7 @@ def main() -> None:
             seen.add(rid)
             hangul_rows.append(r)
 
-    if len(hangul_rows) < TARGET_COUNT:
-        raise ValueError(f"Need {TARGET_COUNT} reviews, found only {len(hangul_rows)}")
-
-    # Select exactly 5,000 reviews
-    selected = hangul_rows[:TARGET_COUNT]
+    selected = hangul_rows
 
     OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     pos_count = 0

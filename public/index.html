@@ -427,7 +427,7 @@
         $('modelInfo').textContent = `분류 모델: 한국어 리뷰 ${info.trainedReviews.toLocaleString()}개 이진 학습 (버그·최적화 vs 그 외)${statText}`;
       })
       .catch(() => {
-        $('modelInfo').textContent = '분류 모델: 한국어 리뷰 5,000개 이진 학습 (버그·최적화 vs 그 외)';
+        $('modelInfo').textContent = '분류 모델: 한국어 리뷰 이진 학습 (버그·최적화 vs 그 외)';
       });
 
     function showStatus(msg, isError = false) {

@@ -1,7 +1,8 @@
 """
 Step 2: Train a binary classifier (Bug & Optimization Issue vs Other)
-on 5,000 labeled Steam reviews using clause-level TF-IDF + Logistic Regression
-with review-level max-pooling, and export the portable model to JSON.
+on all labeled Steam reviews (105,000+) using clause-level TF-IDF +
+Logistic Regression with review-level max-pooling, and export the portable
+model to JSON.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from label_reviews import CLAUSE_SPLIT_RE, is_bug_or_opt_clause  # noqa: E402
 
-DATA_CSV = ROOT / "data" / "reviews_labeled_5000.csv"
+DATA_CSV = ROOT / "data" / "reviews_labeled.csv"
 MODEL_DIR = ROOT / "model"
 MODEL_JSON = MODEL_DIR / "bug_opt_classifier.json"
 METRICS_JSON = MODEL_DIR / "metrics.json"
@@ -88,8 +89,8 @@ def main() -> None:
         analyzer="char",
         ngram_range=(2, 4),
         sublinear_tf=True,
-        min_df=2,
-        max_features=30000,
+        min_df=3,
+        max_features=35000,
     )
     X_train = vec_eval.fit_transform(tr_texts)
     X_val = vec_eval.transform(va_texts)
@@ -99,25 +100,34 @@ def main() -> None:
     best_val_f1 = -1.0
     best_model = None
 
-    for c_val in [1.0, 2.0, 4.0, 6.0, 10.0]:
-        clf = LogisticRegression(
-            class_weight="balanced",
-            C=c_val,
-            max_iter=1000,
-            random_state=42,
-        )
-        clf.fit(X_train, tr_y)
-        val_probs = pool_review_probs(clf.predict_proba(X_val)[:, 1], va_map, len(val_idx))
-        for th in np.arange(0.35, 0.90, 0.05):
-            th_r = round(float(th), 2)
-            preds = (val_probs >= th_r).astype(int)
-            f1 = float(f1_score(y_rev[val_idx], preds, zero_division=0))
-            if f1 > best_val_f1:
-                best_val_f1 = f1
-                best_cfg = (c_val, th_r)
-                best_model = clf
+    weight_candidates = [
+        ("none", None),
+        ("pos3", {0: 1, 1: 3}),
+        ("pos5", {0: 1, 1: 5}),
+        ("balanced", "balanced"),
+    ]
 
-    best_c, best_th = best_cfg
+    for w_name, w_val in weight_candidates:
+        for c_val in [1.0, 3.0, 6.0, 12.0]:
+            clf = LogisticRegression(
+                solver="liblinear",
+                class_weight=w_val,
+                C=c_val,
+                max_iter=500,
+                random_state=42,
+            )
+            clf.fit(X_train, tr_y)
+            val_probs = pool_review_probs(clf.predict_proba(X_val)[:, 1], va_map, len(val_idx))
+            for th in np.arange(0.25, 0.90, 0.05):
+                th_r = round(float(th), 2)
+                preds = (val_probs >= th_r).astype(int)
+                f1 = float(f1_score(y_rev[val_idx], preds, zero_division=0))
+                if f1 > best_val_f1:
+                    best_val_f1 = f1
+                    best_cfg = (w_name, w_val, c_val, th_r)
+                    best_model = clf
+
+    best_w_name, best_w_val, best_c, best_th = best_cfg
     val_probs = pool_review_probs(best_model.predict_proba(X_val)[:, 1], va_map, len(val_idx))
     val_preds = (val_probs >= best_th).astype(int)
 
@@ -138,6 +148,7 @@ def main() -> None:
         "hyperparameters": {
             "method": "Clause-level TF-IDF + LogisticRegression with review-level max-pooling",
             "ngram_range": [2, 4],
+            "class_weight": best_w_name,
             "C": best_c,
             "threshold": best_th,
         },
@@ -158,7 +169,7 @@ def main() -> None:
         "final_model_trained_on": total,
     }
 
-    # Refit final production model on all 5,000 labeled reviews
+    # Refit final production model on all labeled reviews
     all_idx = np.arange(total)
     all_texts, all_y, _ = extract_clauses(rows, all_idx)
 
@@ -166,14 +177,15 @@ def main() -> None:
         analyzer="char",
         ngram_range=(2, 4),
         sublinear_tf=True,
-        min_df=2,
-        max_features=30000,
+        min_df=3,
+        max_features=35000,
     )
     X_full = vec_full.fit_transform(all_texts)
     clf_full = LogisticRegression(
-        class_weight="balanced",
+        solver="liblinear",
+        class_weight=best_w_val,
         C=best_c,
-        max_iter=1000,
+        max_iter=500,
         random_state=42,
     )
     clf_full.fit(X_full, all_y)
@@ -209,10 +221,13 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    print(f"Trained on {total} reviews ({len(all_texts)} clauses) | C={best_c}, threshold={best_th}")
-    print(f"Test metrics: {json.dumps(metrics['test'], ensure_ascii=False)}")
-    print(f"Saved model ({MODEL_JSON.stat().st_size / 1024:.1f} KB) -> {MODEL_JSON}")
-    print(f"Saved metrics -> {METRICS_JSON}")
+    print(
+        f"Trained on {total:,} reviews ({len(all_texts):,} clauses) | weight={best_w_name}, C={best_c}, threshold={best_th}",
+        flush=True,
+    )
+    print(f"Test metrics: {json.dumps(metrics['test'], ensure_ascii=False)}", flush=True)
+    print(f"Saved model ({MODEL_JSON.stat().st_size / 1024:.1f} KB) -> {MODEL_JSON}", flush=True)
+    print(f"Saved metrics -> {METRICS_JSON}", flush=True)
 
 
 if __name__ == "__main__":
