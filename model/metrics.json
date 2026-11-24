@@ -1,0 +1,40 @@
+{
+  "dataset": {
+    "total_reviews": 5000,
+    "bug_opt_count": 111,
+    "other_count": 4889,
+    "bug_opt_ratio": 0.0222,
+    "train_reviews": 3200,
+    "val_reviews": 800,
+    "test_reviews": 1000
+  },
+  "hyperparameters": {
+    "method": "Clause-level TF-IDF + LogisticRegression with review-level max-pooling",
+    "ngram_range": [
+      2,
+      4
+    ],
+    "C": 1.0,
+    "threshold": 0.35
+  },
+  "validation": {
+    "f1": 0.6,
+    "precision": 0.5455,
+    "recall": 0.6667,
+    "roc_auc": 0.9449
+  },
+  "test": {
+    "accuracy": 0.98,
+    "precision": 0.5312,
+    "recall": 0.7727,
+    "f1": 0.6296,
+    "roc_auc": 0.9631,
+    "confusion_matrix": {
+      "tn": 963,
+      "fp": 15,
+      "fn": 5,
+      "tp": 17
+    }
+  },
+  "final_model_trained_on": 5000
+}

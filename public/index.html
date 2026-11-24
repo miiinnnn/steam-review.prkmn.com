@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>스팀 버그·최적화 리뷰 분석기</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #ffffff;
+      color: #1f2328;
+      font: 14px/1.65 "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+    a {
+      color: #0969da;
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 36px 20px 72px;
+    }
+
+    /* Classic Editorial Header */
+    header {
+      border-bottom: 2px solid #24292f;
+      padding-bottom: 14px;
+      margin-bottom: 24px;
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #111111;
+    }
+    header p {
+      margin: 0;
+      color: #57606a;
+      font-size: 13px;
+    }
+
+    /* Search Box */
+    .search-section {
+      margin-bottom: 20px;
+    }
+    .search-wrap {
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 15px;
+      color: #1f2328;
+      background: #ffffff;
+      border: 1px solid #8c959f;
+      border-radius: 3px;
+      outline: none;
+    }
+    .search-input:focus {
+      border-color: #24292f;
+    }
+    .search-input::placeholder {
+      color: #8c959f;
+    }
+
+    .dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: -1px;
+      background: #ffffff;
+      border: 1px solid #8c959f;
+      border-top: 1px solid #d0d7de;
+      z-index: 50;
+      max-height: 320px;
+      overflow-y: auto;
+      display: none;
+    }
+    .dropdown.open { display: block; }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #eef1f4;
+    }
+    .dropdown-item:last-child { border-bottom: none; }
+    .dropdown-item:hover,
+    .dropdown-item.active {
+      background: #f3f4f6;
+    }
+    .dropdown-item img {
+      width: 58px;
+      height: 22px;
+      object-fit: cover;
+      border: 1px solid #e5e7eb;
+      flex-shrink: 0;
+    }
+    .dropdown-name {
+      flex: 1;
+      font-size: 14px;
+      color: #1f2328;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dropdown-id {
+      font-size: 12px;
+      color: #6e7781;
+      font-family: Consolas, monospace;
+    }
+    .dropdown-empty {
+      padding: 12px;
+      color: #6e7781;
+      font-size: 13px;
+    }
+
+    .quick-picks {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #57606a;
+    }
+    .quick-picks span {
+      margin-right: 6px;
+    }
+    .chip {
+      background: none;
+      border: none;
+      padding: 0;
+      margin-right: 10px;
+      font: inherit;
+      color: #0969da;
+      cursor: pointer;
+    }
+    .chip:hover { text-decoration: underline; }
+
+    /* Status Line */
+    .status-bar {
+      display: none;
+      padding: 10px 12px;
+      margin: 16px 0;
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
+      color: #24292f;
+      font-size: 13px;
+    }
+    .status-bar.show { display: block; }
+    .status-bar.error {
+      border-color: #d1242f;
+      background: #fff5f5;
+      color: #a40e26;
+    }
+
+    /* Summary & Controls */
+    .summary-section {
+      display: none;
+      margin-top: 24px;
+    }
+    .summary-section.show { display: block; }
+
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #d0d7de;
+    }
+    .game-title-wrap h2 {
+      display: inline;
+      margin: 0 10px 0 0;
+      font-size: 19px;
+      font-weight: 700;
+      color: #111111;
+    }
+    .game-title-wrap a {
+      font-size: 12px;
+    }
+    .stats-inline {
+      font-size: 13px;
+      color: #57606a;
+    }
+    .stats-inline strong {
+      color: #1f2328;
+    }
+    .stats-inline strong.issue {
+      color: #b42318;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid #eaeef2;
+    }
+    .tag-filters {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: #ffffff;
+      border: 1px solid #d0d7de;
+      border-radius: 2px;
+      color: #24292f;
+      padding: 4px 9px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .filter-btn:hover {
+      background: #f6f8fa;
+    }
+    .filter-btn.active {
+      background: #24292f;
+      border-color: #24292f;
+      color: #ffffff;
+    }
+    .sort-select {
+      background: #ffffff;
+      border: 1px solid #d0d7de;
+      border-radius: 2px;
+      color: #1f2328;
+      padding: 4px 8px;
+      font: inherit;
+      font-size: 12px;
+    }
+
+    /* Classic List Reviews */
+    .reviews-list {
+      margin: 0;
+      padding: 0;
+    }
+    .review-card {
+      padding: 18px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .review-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #57606a;
+    }
+    .meta-prob {
+      font-weight: 700;
+      color: #b42318;
+    }
+    .meta-rec {
+      font-weight: 700;
+      color: #1a7f37;
+    }
+    .meta-notrec {
+      font-weight: 700;
+      color: #b42318;
+    }
+    .meta-tag {
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
+      color: #24292f;
+      padding: 1px 6px;
+      font-size: 11px;
+    }
+    .highlight-quote {
+      margin: 0 0 8px;
+      padding: 6px 10px;
+      border-left: 3px solid #9ca3af;
+      background: #f8f9fa;
+      color: #111827;
+      font-size: 13px;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+    .review-body {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #24292f;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .empty-state {
+      padding: 36px 0;
+      text-align: center;
+      color: #57606a;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .load-more-wrap {
+      margin-top: 22px;
+      text-align: center;
+    }
+    .load-more-btn {
+      background: #ffffff;
+      color: #1f2328;
+      border: 1px solid #24292f;
+      border-radius: 3px;
+      padding: 9px 22px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .load-more-btn:hover:not(:disabled) {
+      background: #24292f;
+      color: #ffffff;
+    }
+    .load-more-btn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    .load-more-done {
+      margin: 0;
+      color: #6e7781;
+      font-size: 12px;
+    }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 12px;
+      border-top: 1px solid #eaeef2;
+      font-size: 12px;
+      color: #6e7781;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>스팀 버그·최적화 리뷰 분석기</h1>
+      <p>게임 이름의 일부를 입력해 선택하면 최신 한국어 리뷰 중 버그 및 최적화 이슈 리뷰만 모아 보여줍니다.</p>
+    </header>
+
+    <div class="search-section">
+      <div class="search-wrap">
+        <input
+          id="searchInput"
+          class="search-input"
+          type="text"
+          autocomplete="off"
+          placeholder="게임 이름을 입력하세요 (예: 엘든, 스타듀, 배그, 사이버펑크)"
+          aria-label="스팀 게임 검색"
+        >
+        <div id="dropdown" class="dropdown" role="listbox"></div>
+      </div>
+      <div class="quick-picks">
+        <span>바로 검색:</span>
+        <button class="chip" data-appid="1245620" data-name="ELDEN RING">ELDEN RING</button>
+        <button class="chip" data-appid="1091500" data-name="Cyberpunk 2077">Cyberpunk 2077</button>
+        <button class="chip" data-appid="578080" data-name="PUBG: BATTLEGROUNDS">PUBG: BATTLEGROUNDS</button>
+        <button class="chip" data-appid="2246340" data-name="Monster Hunter Wilds">Monster Hunter Wilds</button>
+        <button class="chip" data-appid="413150" data-name="Stardew Valley">Stardew Valley</button>
+      </div>
+    </div>
+
+    <div id="statusBar" class="status-bar" role="status"></div>
+
+    <section id="summarySection" class="summary-section">
+      <div class="summary-header">
+        <div class="game-title-wrap">
+          <h2 id="gameTitle"></h2>
+          <a id="storeLink" target="_blank" rel="noopener noreferrer">Steam 상점</a>
+        </div>
+        <div class="stats-inline">
+          분석 <strong id="statScanned">0</strong>개 ·
+          버그·최적화 <strong class="issue" id="statIssues">0</strong>개
+          (<strong class="issue" id="statRatio">0%</strong>)
+        </div>
+      </div>
+
+      <div class="controls">
+        <div id="tagFilters" class="tag-filters"></div>
+        <select id="sortSelect" class="sort-select" aria-label="정렬 기준">
+          <option value="prob">이슈 확률 높은 순</option>
+          <option value="recent">최신 작성순</option>
+          <option value="helpful">도움됨 많은 순</option>
+        </select>
+      </div>
+
+      <div id="reviewsList" class="reviews-list"></div>
+      <div id="loadMoreWrap" class="load-more-wrap"></div>
+    </section>
+
+    <footer id="modelInfo">이진 분류 모델 정보 불러오는 중...</footer>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const searchInput = $('searchInput');
+    const dropdown = $('dropdown');
+    const statusBar = $('statusBar');
+    const summarySection = $('summarySection');
+    const tagFilters = $('tagFilters');
+    const sortSelect = $('sortSelect');
+    const reviewsList = $('reviewsList');
+    const loadMoreWrap = $('loadMoreWrap');
+
+    const BATCH_SIZE = 1000;
+    let debounceTimer = null;
+    let suggestions = [];
+    let activeIdx = -1;
+    let currentData = null;
+    let selectedTag = '전체';
+    let isLoadingMore = false;
+
+    fetch('/api/model-info')
+      .then((r) => r.json())
+      .then((info) => {
+        const m = info.metrics;
+        const statText = m
+          ? ` · 테스트 정확도 ${(m.accuracy * 100).toFixed(1)}% · 재현율 ${(m.recall * 100).toFixed(1)}% · F1 ${(m.f1 * 100).toFixed(1)}%`
+          : '';
+        $('modelInfo').textContent = `분류 모델: 한국어 리뷰 ${info.trainedReviews.toLocaleString()}개 이진 학습 (버그·최적화 vs 그 외)${statText}`;
+      })
+      .catch(() => {
+        $('modelInfo').textContent = '분류 모델: 한국어 리뷰 5,000개 이진 학습 (버그·최적화 vs 그 외)';
+      });
+
+    function showStatus(msg, isError = false) {
+      statusBar.className = 'status-bar show' + (isError ? ' error' : '');
+      statusBar.textContent = msg;
+    }
+
+    function hideStatus() {
+      statusBar.className = 'status-bar';
+      statusBar.textContent = '';
+    }
+
+    function closeDropdown() {
+      dropdown.classList.remove('open');
+      activeIdx = -1;
+    }
+
+    function renderDropdown(items) {
+      suggestions = items;
+      activeIdx = -1;
+      dropdown.innerHTML = '';
+
+      if (!items.length) {
+        dropdown.innerHTML = '<div class="dropdown-empty">일치하는 Steam 게임이 없습니다.</div>';
+        dropdown.classList.add('open');
+        return;
+      }
+
+      items.forEach((item) => {
+        const div = document.createElement('div');
+        div.className = 'dropdown-item';
+        div.setAttribute('role', 'option');
+        div.innerHTML = `
+          ${item.tinyImage ? `<img src="${item.tinyImage}" alt="">` : ''}
+          <span class="dropdown-name"></span>
+          <span class="dropdown-id">#${item.appid}</span>
+        `;
+        div.querySelector('.dropdown-name').textContent = item.name;
+        div.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          selectGame(item.appid, item.name);
+        });
+        dropdown.appendChild(div);
+      });
+      dropdown.classList.add('open');
+    }
+
+    function updateActiveItem() {
+      const nodes = dropdown.querySelectorAll('.dropdown-item');
+      nodes.forEach((n, i) => n.classList.toggle('active', i === activeIdx));
+      if (nodes[activeIdx]) nodes[activeIdx].scrollIntoView({ block: 'nearest' });
+    }
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim();
+      clearTimeout(debounceTimer);
+      if (!q) {
+        closeDropdown();
+        return;
+      }
+      debounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/search?' + new URLSearchParams({ q }));
+          const data = await res.json();
+          if (searchInput.value.trim() === q) {
+            renderDropdown(data.items || []);
+          }
+        } catch {
+          closeDropdown();
+        }
+      }, 220);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (!dropdown.classList.contains('open') || !suggestions.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIdx = (activeIdx + 1) % suggestions.length;
+        updateActiveItem();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIdx = (activeIdx - 1 + suggestions.length) % suggestions.length;
+        updateActiveItem();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const pick = suggestions[activeIdx >= 0 ? activeIdx : 0];
+        if (pick) selectGame(pick.appid, pick.name);
+      } else if (e.key === 'Escape') {
+        closeDropdown();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-wrap')) closeDropdown();
+    });
+
+    document.querySelectorAll('.chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        selectGame(Number(btn.dataset.appid), btn.dataset.name);
+      });
+    });
+
+    async function selectGame(appid, name) {
+      searchInput.value = name;
+      closeDropdown();
+      summarySection.classList.remove('show');
+      isLoadingMore = false;
+      showStatus(`"${name}"의 최신 한국어 리뷰 ${BATCH_SIZE.toLocaleString()}개를 불러와 분석하고 있습니다...`);
+
+      try {
+        const res = await fetch('/api/reviews?' + new URLSearchParams({
+          appid: String(appid),
+          name,
+          limit: String(BATCH_SIZE),
+          cursor: '*',
+        }));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '리뷰를 불러오지 못했습니다.');
+        currentData = {
+          ...data,
+          seenIds: new Set(data.reviews.map((r) => r.id)),
+        };
+        selectedTag = '전체';
+        hideStatus();
+        renderResults();
+      } catch (err) {
+        showStatus(err.message, true);
+      }
+    }
+
+    async function loadMoreReviews() {
+      if (!currentData || !currentData.hasMore || !currentData.nextCursor || isLoadingMore) return;
+      isLoadingMore = true;
+      renderLoadMore();
+      showStatus(`"${currentData.gameName}"의 추가 한국어 리뷰 ${BATCH_SIZE.toLocaleString()}개를 분석하고 있습니다...`);
+
+      try {
+        const res = await fetch('/api/reviews?' + new URLSearchParams({
+          appid: String(currentData.appid),
+          name: currentData.gameName,
+          limit: String(BATCH_SIZE),
+          cursor: currentData.nextCursor,
+        }));
+        const next = await res.json();
+        if (!res.ok) throw new Error(next.error || '추가 리뷰를 불러오지 못했습니다.');
+
+        currentData.totalScanned += next.totalScanned;
+        for (const r of next.reviews) {
+          if (!currentData.seenIds.has(r.id)) {
+            currentData.seenIds.add(r.id);
+            currentData.reviews.push(r);
+          }
+        }
+        currentData.issueCount = currentData.reviews.length;
+        currentData.issueRatio = currentData.totalScanned
+          ? Number(((currentData.issueCount / currentData.totalScanned) * 100).toFixed(1))
+          : 0;
+        currentData.nextCursor = next.nextCursor;
+        currentData.hasMore = next.hasMore;
+
+        hideStatus();
+      } catch (err) {
+        showStatus(err.message, true);
+      } finally {
+        isLoadingMore = false;
+        renderResults();
+      }
+    }
+
+    function renderLoadMore() {
+      loadMoreWrap.innerHTML = '';
+      if (!currentData) return;
+      if (currentData.hasMore && currentData.nextCursor) {
+        const btn = document.createElement('button');
+        btn.className = 'load-more-btn';
+        btn.disabled = isLoadingMore;
+        btn.textContent = isLoadingMore
+          ? `리뷰 ${BATCH_SIZE.toLocaleString()}개 추가 분석 중...`
+          : `리뷰 ${BATCH_SIZE.toLocaleString()}개 더 분석하기 (현재 ${currentData.totalScanned.toLocaleString()}개 분석됨)`;
+        btn.addEventListener('click', loadMoreReviews);
+        loadMoreWrap.appendChild(btn);
+      } else {
+        const p = document.createElement('p');
+        p.className = 'load-more-done';
+        p.textContent = `모든 한국어 리뷰(총 ${currentData.totalScanned.toLocaleString()}개)를 분석했습니다.`;
+        loadMoreWrap.appendChild(p);
+      }
+    }
+
+    function formatDate(unixSec) {
+      if (!unixSec) return '';
+      const d = new Date(unixSec * 1000);
+      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function renderResults() {
+      if (!currentData) return;
+      $('gameTitle').textContent = currentData.gameName;
+      $('storeLink').href = `https://store.steampowered.com/app/${currentData.appid}/`;
+      $('statScanned').textContent = currentData.totalScanned.toLocaleString();
+      $('statIssues').textContent = currentData.issueCount.toLocaleString();
+      $('statRatio').textContent = `${currentData.issueRatio}%`;
+
+      const counts = new Map([['전체', currentData.reviews.length]]);
+      for (const r of currentData.reviews) {
+        for (const t of r.tags) counts.set(t, (counts.get(t) || 0) + 1);
+      }
+
+      tagFilters.innerHTML = '';
+      for (const [tag, count] of counts) {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn' + (selectedTag === tag ? ' active' : '');
+        btn.textContent = `${tag} (${count})`;
+        btn.addEventListener('click', () => {
+          selectedTag = tag;
+          renderResults();
+        });
+        tagFilters.appendChild(btn);
+      }
+
+      let filtered = selectedTag === '전체'
+        ? [...currentData.reviews]
+        : currentData.reviews.filter((r) => r.tags.includes(selectedTag));
+
+      const sortBy = sortSelect.value;
+      if (sortBy === 'prob') filtered.sort((a, b) => b.probability - a.probability);
+      else if (sortBy === 'recent') filtered.sort((a, b) => b.createdAt - a.createdAt);
+      else if (sortBy === 'helpful') filtered.sort((a, b) => b.helpfulVotes - a.helpfulVotes);
+
+      reviewsList.innerHTML = '';
+      if (!filtered.length) {
+        reviewsList.innerHTML = '<div class="empty-state">버그 및 최적화 이슈로 분류된 리뷰가 없습니다.</div>';
+      } else {
+        for (const r of filtered) {
+          const card = document.createElement('article');
+          card.className = 'review-card';
+
+          const meta = document.createElement('div');
+          meta.className = 'review-meta';
+          meta.innerHTML = `
+            <span class="meta-prob">이슈 확률 ${(r.probability * 100).toFixed(0)}%</span>
+            <span>·</span>
+            <span class="${r.recommended ? 'meta-rec' : 'meta-notrec'}">${r.recommended ? '추천' : '비추천'}</span>
+            ${r.tags.map((t) => `<span class="meta-tag">${t}</span>`).join('')}
+            <span>플레이 ${r.playtimeHours}시간 · ${formatDate(r.createdAt)}${r.helpfulVotes ? ` · 도움됨 ${r.helpfulVotes}` : ''}</span>
+          `;
+          card.appendChild(meta);
+
+          if (r.matchedClause && r.matchedClause !== r.text) {
+            const quote = document.createElement('div');
+            quote.className = 'highlight-quote';
+            quote.textContent = r.matchedClause;
+            card.appendChild(quote);
+          }
+
+          const body = document.createElement('p');
+          body.className = 'review-body';
+          body.textContent = r.text;
+          card.appendChild(body);
+
+          reviewsList.appendChild(card);
+        }
+      }
+
+      renderLoadMore();
+      summarySection.classList.add('show');
+    }
+
+    sortSelect.addEventListener('change', renderResults);
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+.review_lib/
+review_model/
+.venv/
+__pycache__/
+*.pyc
+*.bundle
+*.docx
+강의자료/
+steam_collector_check/
+steam_review_data_*/
+.env
+.env.*
+web/dist/
