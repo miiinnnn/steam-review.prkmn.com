@@ -298,7 +298,7 @@ export async function fetchSteamReviews(appid, maxReviews = 1000, startCursor = 
     }
 
     const nextCursor = body?.cursor || '';
-    if (!nextCursor || visitedCursors.has(nextCursor) || batch.length < payload.num_per_page) {
+    if (!nextCursor || visitedCursors.has(nextCursor)) {
       cursor = '';
       hasMore = false;
       break;
