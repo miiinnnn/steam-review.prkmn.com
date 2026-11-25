@@ -347,13 +347,6 @@
         font-size: 12px;
       }
 
-      footer {
-        margin-top: 48px;
-        padding-top: 12px;
-        border-top: 1px solid #eaeef2;
-        font-size: 12px;
-        color: #6e7781;
-      }
     </style>
   </head>
   <body>
@@ -413,7 +406,7 @@
             >
           </div>
           <div class="stats-inline">
-            분석 <strong id="statScanned">0</strong>개 · 버그·최적화
+            분석 <strong id="statScanned">0</strong>개 · 기술적 이슈
             <strong class="issue" id="statIssues">0</strong>개 (<strong
               class="issue"
               id="statRatio"
@@ -434,8 +427,6 @@
         <div id="reviewsList" class="reviews-list"></div>
         <div id="loadMoreWrap" class="load-more-wrap"></div>
       </section>
-
-      <footer id="modelInfo">이진 분류 모델 정보 불러오는 중...</footer>
     </div>
 
     <script>
@@ -456,21 +447,6 @@
       let currentData = null;
       let selectedTag = "전체";
       let isLoadingMore = false;
-
-      fetch("/api/model-info")
-        .then((r) => r.json())
-        .then((info) => {
-          const m = info.metrics;
-          const statText = m
-            ? ` · 테스트 정확도 ${(m.accuracy * 100).toFixed(1)}% · 재현율 ${(m.recall * 100).toFixed(1)}% · F1 ${(m.f1 * 100).toFixed(1)}%`
-            : "";
-          $("modelInfo").textContent =
-            `분류 모델: 한국어 리뷰 ${info.trainedReviews.toLocaleString()}개 이진 학습 (버그·최적화 vs 그 외)${statText}`;
-        })
-        .catch(() => {
-          $("modelInfo").textContent =
-            "분류 모델: 한국어 리뷰 이진 학습 (버그·최적화 vs 그 외)";
-        });
 
       function showStatus(msg, isError = false) {
         statusBar.className = "status-bar show" + (isError ? " error" : "");
